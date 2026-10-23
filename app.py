@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from screening import LOW_IS_CONCERNING, concern_percentile, stage_screen
+from screening import LOW_IS_CONCERNING, concern_percentile, magic_formula_rankings, stage_screen
 
 
 st.set_page_config(page_title="ACCT 3343 | SHORT Screening", page_icon="📉", layout="wide")
@@ -67,7 +67,8 @@ def shown_columns(frame: pd.DataFrame, include_risk=False) -> pd.DataFrame:
         formatted["bm"] = formatted["bm"].round(3)
     return formatted.rename(columns={
         "ticker": "Ticker", "company_name": "Company", "sector": "Sector",
-        "fiscal_period_end": "Fiscal year-end", "short_warning_score": "Warning score / 100",
+        "fiscal_period_end": "Fiscal year-end",
+        "short_warning_score": "Relative SHORT concern ranking (/100)",
         "bm": "B/M", "eey": "EEY (%)", "sta": "STA (%)", "snoa": "SNOA (%)",
         "pman": "PMAN (%)", "gpa": "GPA (%)", "roc": "ROC (%)",
     })
@@ -77,6 +78,23 @@ def metric_display(name: str, value: float) -> str:
     if pd.isna(value):
         return "Unavailable"
     return f"{value:.3f}" if name == "bm" else f"{value * 100:.2f}%"
+
+
+def shown_magic_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Display original metrics alongside transparent textbook rank additions."""
+    cols = [
+        "magic_overall_rank", "ticker", "company_name", "sector",
+        "roc", "magic_roc_rank", "eey", "magic_eey_rank", "magic_rank_sum",
+    ]
+    shown = frame[cols].copy()
+    shown["roc"] = (100 * shown["roc"]).round(2)
+    shown["eey"] = (100 * shown["eey"]).round(2)
+    return shown.rename(columns={
+        "magic_overall_rank": "Overall rank", "ticker": "Ticker",
+        "company_name": "Company", "sector": "Sector", "roc": "ROC (%)",
+        "magic_roc_rank": "ROC rank", "eey": "EEY (%)",
+        "magic_eey_rank": "EEY rank", "magic_rank_sum": "Combined rank sum",
+    })
 
 
 def peer_statistics(universe: pd.DataFrame, sector: str, metric: str, value: float) -> dict:
@@ -96,8 +114,9 @@ def peer_statistics(universe: pd.DataFrame, sector: str, metric: str, value: flo
 st.title("SHORT Analysis | Financial Statement Screening")
 st.caption("ACCT 3343 · Screening for potential overvaluation and earnings-quality concerns")
 st.info(
-    "This is an educational, cross-sectional research screen. A high warning score is not "
-    "proof of overvaluation, earnings manipulation, or a profitable short trade."
+    "This is an educational, cross-sectional research screen. Its **Custom SHORT warning score** "
+    "is an app-created relative ranking, not an established textbook or predictive financial "
+    "model. A high score is not proof of overvaluation, earnings manipulation, or a profitable short trade."
 )
 
 if not CSV_PATH.exists():
@@ -211,8 +230,9 @@ else:
     p = p.sort_values(["short_warning_score", "ticker"], ascending=[False, True])
     st.subheader("Potential SHORT research candidates · Top 10")
     st.caption(
-        "Warning scores reflect relative rank strength across the three user-selected screens "
-        "(higher = more warning signals). The score is not an estimated probability of a decline. "
+        "**Custom SHORT warning score:** the relative SHORT concern ranking (0–100) "
+        "combines the three user-selected screens (higher = more relative warning signals). "
+        "This is our own educational ranking, not a textbook formula or an estimated probability of decline. "
         f"Showing {min(10, len(p))} of {len(p)} final-stage survivors. "
         "Financial ratios below are percentages except book-to-market (a multiple)."
     )
@@ -222,10 +242,35 @@ else:
     )
     st.download_button(
         "Download surviving companies (CSV)",
-        p.to_csv(index=False).encode("utf-8"), file_name="short_candidates.csv", mime="text/csv",
+        p.rename(columns={
+            "short_warning_score": "relative_short_concern_ranking"
+        }).to_csv(index=False).encode("utf-8"),
+        file_name="short_candidates.csv", mime="text/csv",
     )
 
+    with st.expander("How is the Custom SHORT warning score calculated?"):
+        st.markdown(
+            "**This ranking was created for this app; it is not an established financial model.** "
+            "It compares companies within the selected universe and changes when the "
+            "screening settings change.\n\n"
+            "1. **Rank selected metrics within each stage.** Low BM and EEY, high STA/SNOA/PMAN, "
+            "and low GPA/ROC count as more concerning. When multiple metrics are selected "
+            "in one stage, their ranks are added with equal weight.\n"
+            "2. **Turn each stage into a relative 0–100 concern ranking.** The most concerning "
+            "rank sum receives the highest score among companies with the required data "
+            "at that stage. Ties share an average ranking. The eligible comparison group "
+            "gets smaller after each cutoff.\n"
+            "3. **Average the three stage scores equally:** "
+            "`(valuation + earnings quality + profitability) / 3`. "
+            "Each stage receives one-third of the final Custom SHORT warning score, "
+            "regardless of how many metrics are selected in that stage.\n\n"
+            "**Interpretation:** 85/100 means relatively strong warning signals within "
+            "the chosen screening setup. It does not mean 85% overvaluation, an 85% "
+            "chance of decline, or an 85% probability of a profitable SHORT."
+        )
+
     st.subheader("Candidate analysis")
+    st.caption("The figures below are relative SHORT concern rankings out of 100, not predicted returns.")
     top_cols = st.columns(min(3, len(p)))
     for col, (_, company) in zip(top_cols, p.head(3).iterrows()):
         with col:
@@ -236,6 +281,21 @@ else:
     sector = str(chosen.get("sector", "Unknown sector"))
     st.markdown(f"### {chosen.get('company_name', symbol)} ({symbol})")
     st.caption(f"Sector: {sector} · Industry: {chosen.get('industry', 'Not classified')}")
+
+    st.markdown("**Custom SHORT warning score breakdown**")
+    breakdown = st.columns(3)
+    for col, label, field in zip(
+        breakdown,
+        ["Valuation concern", "Earnings-quality concern", "Profitability concern"],
+        ["valuation_strength", "quality_strength", "performance_strength"],
+    ):
+        with col:
+            st.metric(label, f"{chosen[field] * 100:.1f}/100")
+    st.caption(
+        "These are relative rankings within each stage's eligible companies. "
+        "Their equal-weight average gives the custom SHORT warning score above. "
+        "They are not calibrated probabilities of overvaluation or a price decline."
+    )
 
     stage_signals = [
         ("Valuation concern", valuation_metrics),
@@ -412,6 +472,13 @@ with st.expander("Course formulas and interpretation"):
 - GPA = (revenue − cost of goods sold) / total assets.
 - ROC = EBIT / (net PP&E + current assets − current liabilities).
 
+**Textbook Magic Formula (BUY research ranking)**
+
+- Independently rank companies by ROC (highest = rank 1) and EEY (highest = rank 1).
+- Magic Formula combined rank = ROC rank + EEY rank; lower totals rank first.
+- This is a separate research screen from the custom SHORT warning score and uses
+  the professor's ROC, TEV and excess-cash conventions recorded above.
+
 For PMAN, all eight components and a consecutive preceding annual fiscal period must exist.
 The screening universe also excludes any firm with a reported nonpositive
 Beneish GMI or SGAI, even if its PMAN was already unavailable.
@@ -424,7 +491,42 @@ Sector-relative mode subtracts sector means; it does **not** divide by sector st
 
 All rankings and screening results recompute when the sidebar controls change, using only the saved CSV.
 The three stage strengths use tie-aware relative rank percentiles, combined
-into an educational 0–100 warning index for surviving firms.
+into an app-created **Custom SHORT warning score** for surviving firms, displayed
+as a **Relative SHORT concern ranking** out of 100. It is not a textbook formula.
 Only the top ten SHORT survivors are shown in the main results table; the full
 survivor set remains available for deeper inspection and CSV download.
 """)
+
+st.subheader("Magic Formula | Top 10 BUY research candidates")
+st.caption(
+    "**Textbook ranking method (distinct from our Custom SHORT warning score):** "
+    "rank firms separately by Return on Capital (ROC) and Enterprise Earnings Yield (EEY), "
+    "with the highest value receiving rank 1 for each metric. Add both ranks; "
+    "the **lowest combined rank sum** is the most attractive under the Magic Formula. "
+    "Equal metric values share the same rank, and ties in the combined total are "
+    "listed alphabetically."
+)
+magic = magic_formula_rankings(screening_universe)
+st.caption(
+    f"{len(magic):,} of {len(screening_universe):,} selected companies have both "
+    "ratios available; companies missing either input are omitted. "
+    "This independent ranking uses the saved Yahoo Finance snapshot and the course's "
+    "ROC and TEV conventions; SHORT-screen retention sliders do not affect it."
+)
+if magic.empty:
+    st.warning("No companies in the selected sectors have both ROC and EEY available.")
+else:
+    st.dataframe(
+        shown_magic_columns(magic.head(10)),
+        hide_index=True, use_container_width=True, height=395,
+    )
+    st.download_button(
+        "Download full Magic Formula ranking (CSV)",
+        shown_magic_columns(magic).to_csv(index=False).encode("utf-8"),
+        file_name="magic_formula_rankings.csv", mime="text/csv",
+    )
+st.caption(
+    "Magic Formula rankings are a BUY **research starting point**, not trade instructions. "
+    "High ROC can be inflated by a small capital denominator, and the accounting data and "
+    "historical valuation snapshot need checking before any investment decision."
+)
