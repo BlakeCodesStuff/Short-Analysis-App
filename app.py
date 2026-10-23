@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from html import escape
 from pathlib import Path
 from urllib.parse import quote
 
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from screening import LOW_IS_CONCERNING, concern_percentile, magic_formula_rankings, stage_screen
@@ -109,6 +111,90 @@ def peer_statistics(universe: pd.DataFrame, sector: str, metric: str, value: flo
         "sample": len(peers),
         "group": description,
     }
+
+
+def short_candidate_scatter(frame: pd.DataFrame, selected_metrics: list[str]) -> go.Figure:
+    """Show the three existing stage rankings without recalculating their scores."""
+    if frame.empty:
+        raise ValueError("Cannot plot an empty SHORT candidate screen")
+
+    # `frame` is already ordered by its overall SHORT warning score.
+    top_tickers = set(frame.head(10)["ticker"])
+    plot = frame.copy()
+    plot["is_top_ten"] = plot["ticker"].isin(top_tickers)
+    figure = go.Figure()
+
+    for top_ten, name, symbol, size, outline in [
+        (False, "Other surviving companies", "circle", 10, "#171B32"),
+        (True, "Top 10 SHORT candidates", "diamond", 15, "#EAFBF7"),
+    ]:
+        subset = plot.loc[plot["is_top_ten"].eq(top_ten)]
+        if subset.empty:
+            continue
+
+        hover_text = []
+        for _, company in subset.iterrows():
+            details = [
+                f"<b>{escape(str(company['company_name']))} ({escape(str(company['ticker']))})</b>",
+                f"Sector: {escape(str(company['sector']))}",
+                f"Valuation concern: {company['valuation_strength'] * 100:.1f}/100",
+                f"Earnings-quality concern: {company['quality_strength'] * 100:.1f}/100",
+                f"Profitability concern: {company['performance_strength'] * 100:.1f}/100",
+                f"Custom SHORT warning score: {company['short_warning_score']:.1f}/100",
+            ]
+            details.extend(
+                f"{metric.upper()}: {metric_display(metric, company[metric])}"
+                for metric in selected_metrics
+            )
+            hover_text.append("<br>".join(details))
+
+        figure.add_trace(go.Scatter(
+            x=subset["valuation_strength"] * 100,
+            y=subset["quality_strength"] * 100,
+            mode="markers",
+            name=name,
+            text=hover_text,
+            hovertemplate="%{text}<extra></extra>",
+            marker={
+                "color": subset["performance_strength"] * 100,
+                "coloraxis": "coloraxis",
+                "symbol": symbol,
+                "size": size,
+                "opacity": 0.9,
+                "line": {"color": outline, "width": 1.4 if top_ten else 0.5},
+            },
+        ))
+
+    figure.update_layout(
+        height=505,
+        margin={"l": 22, "r": 26, "t": 18, "b": 10},
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={"color": "#EAFBF7"},
+        coloraxis={
+            "cmin": 0,
+            "cmax": 100,
+            "colorscale": [[0, "#4DCCBD"], [0.5, "#8980C9"], [1, "#FF8484"]],
+            "colorbar": {"title": {"text": "Profitability<br>concern"}, "ticksuffix": "/100"},
+        },
+        legend={"orientation": "h", "y": 1.07, "x": 0, "yanchor": "bottom"},
+        xaxis={
+            "title": "Valuation concern ranking (/100) →",
+            "range": [0, 101],
+            "dtick": 20,
+            "gridcolor": "#404565",
+            "zeroline": False,
+        },
+        yaxis={
+            "title": "Earnings-quality concern ranking (/100) →",
+            "range": [0, 101],
+            "dtick": 20,
+            "gridcolor": "#404565",
+            "zeroline": False,
+        },
+        hoverlabel={"bgcolor": "#282946", "font": {"color": "#EAFBF7"}},
+    )
+    return figure
 
 
 st.title("SHORT Analysis | Financial Statement Screening")
@@ -268,6 +354,22 @@ else:
             "the chosen screening setup. It does not mean 85% overvaluation, an 85% "
             "chance of decline, or an 85% probability of a profitable SHORT."
         )
+
+    st.subheader("SHORT candidate comparison | Interactive scatter plot")
+    st.caption(
+        "Each dot is a company that survived all three screens. Farther right means greater "
+        "relative valuation concern; higher means greater earnings-quality concern. "
+        "Colour shows profitability concern (teal = lower, coral = higher), and outlined "
+        "diamonds identify the current top 10 SHORT candidates. Hover for company details "
+        "and the selected financial ratios. These are relative rankings within each "
+        "screening stage, not probabilities or predicted returns."
+    )
+    st.plotly_chart(
+        short_candidate_scatter(p, valuation_metrics + quality_metrics + performance_metrics),
+        use_container_width=True,
+        theme=None,
+        config={"displaylogo": False, "scrollZoom": False},
+    )
 
     st.subheader("Candidate analysis")
     st.caption("The figures below are relative SHORT concern rankings out of 100, not predicted returns.")
