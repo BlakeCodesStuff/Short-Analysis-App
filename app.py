@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from html import escape
 from pathlib import Path
 from urllib.parse import quote
@@ -113,10 +114,14 @@ def peer_statistics(universe: pd.DataFrame, sector: str, metric: str, value: flo
     }
 
 
-def short_candidate_scatter(frame: pd.DataFrame, selected_metrics: list[str]) -> go.Figure:
+def short_candidate_scatter(
+    frame: pd.DataFrame, selected_metrics: list[str], zoom: float = 1.0,
+) -> go.Figure:
     """Show the three existing stage rankings without recalculating their scores."""
     if frame.empty:
         raise ValueError("Cannot plot an empty SHORT candidate screen")
+    if zoom < 1:
+        raise ValueError("Zoom must be 1× or greater")
 
     # `frame` is already ordered by its overall SHORT warning score.
     top_tickers = set(frame.head(10)["ticker"])
@@ -165,9 +170,12 @@ def short_candidate_scatter(frame: pd.DataFrame, selected_metrics: list[str]) ->
             },
         ))
 
+    # Increasing the zoom focuses on the high-concern upper-right corner,
+    # without removing or recomputing any of the underlying companies.
+    zoom_lower_bound = 100 - 100 / zoom
     figure.update_layout(
-        height=505,
-        margin={"l": 22, "r": 26, "t": 18, "b": 10},
+        height=540,
+        margin={"l": 76, "r": 96, "t": 46, "b": 82},
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font={"color": "#EAFBF7"},
@@ -180,17 +188,19 @@ def short_candidate_scatter(frame: pd.DataFrame, selected_metrics: list[str]) ->
         legend={"orientation": "h", "y": 1.07, "x": 0, "yanchor": "bottom"},
         xaxis={
             "title": "Valuation concern ranking (/100) →",
-            "range": [0, 101],
+            "range": [zoom_lower_bound, 101],
             "dtick": 20,
             "gridcolor": "#404565",
             "zeroline": False,
+            "automargin": True,
         },
         yaxis={
             "title": "Earnings-quality concern ranking (/100) →",
-            "range": [0, 101],
+            "range": [zoom_lower_bound, 101],
             "dtick": 20,
             "gridcolor": "#404565",
             "zeroline": False,
+            "automargin": True,
         },
         hoverlabel={"bgcolor": "#282946", "font": {"color": "#EAFBF7"}},
     )
@@ -228,8 +238,19 @@ if META_PATH.exists():
         snapshot = json.loads(META_PATH.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         pass
+raw_collection_date = snapshot.get("collected_at_utc", "")
+try:
+    collection_date = datetime.fromisoformat(raw_collection_date).strftime("%B %d, %Y").replace(" 0", " ")
+except (TypeError, ValueError):
+    collection_date = "not recorded"
+fiscal_dates = pd.to_datetime(df["fiscal_period_end"], errors="coerce").dropna()
+fiscal_period_range = (
+    f"{fiscal_dates.min():%Y-%m-%d} to {fiscal_dates.max():%Y-%m-%d}"
+    if not fiscal_dates.empty else "not available"
+)
 st.caption(
-    f"Source: Yahoo Finance · Data collected: {snapshot.get('collected_at_utc', 'unknown date')} "
+    f"Source: Yahoo Finance · Data collected: {collection_date} (UTC) "
+    f"· Fiscal year-ends: {fiscal_period_range} "
     f"· Starting firms: {len(df):,} · "
     f"Beneish index quality exclusions: {snapshot.get('beneish_index_exclusions', 0)} "
     "· Filters use only the saved dataset"
@@ -364,11 +385,20 @@ else:
         "and the selected financial ratios. These are relative rankings within each "
         "screening stage, not probabilities or predicted returns."
     )
+    chart_zoom = st.select_slider(
+        "Scatter plot zoom (toward higher-concern companies)",
+        options=[1.0, 1.5, 2.0, 3.0, 4.0],
+        value=1.0,
+        format_func=lambda zoom: f"{zoom:g}×",
+        help="Extra 1.5× and 3× steps sit between the previous 1×, 2×, and 4× levels. "
+             "This only changes the plot view; use mouse-wheel/trackpad zoom for finer, "
+             "cursor-centred adjustments, or double-click the plot to reset its axes.",
+    )
     st.plotly_chart(
-        short_candidate_scatter(p, valuation_metrics + quality_metrics + performance_metrics),
+        short_candidate_scatter(p, valuation_metrics + quality_metrics + performance_metrics, chart_zoom),
         use_container_width=True,
         theme=None,
-        config={"displaylogo": False, "scrollZoom": False},
+        config={"displaylogo": False, "scrollZoom": True},
     )
 
     st.subheader("Candidate analysis")
