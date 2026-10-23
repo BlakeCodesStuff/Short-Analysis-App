@@ -170,11 +170,20 @@ q, rejected_q, audit_q = stage_screen(v, quality_metrics, quality_pct, sector_re
 p, rejected_p, audit_p = stage_screen(q, performance_metrics, performance_pct, sector_relative, "performance")
 
 audits = [audit_v, audit_q, audit_p]
-labels = ["Initial", "After valuation", "After accrual quality", "Final-stage survivors"]
+labels = [
+    "Starting companies",
+    "After valuation screen",
+    "After earnings-quality screen",
+    "After profitability screen",
+]
 counts = [len(df), len(v), len(q), len(p)]
 summary_cols = st.columns(4)
 for col, label, count in zip(summary_cols, labels, counts):
     col.metric(label, f"{count:,}")
+st.caption(
+    "Each stage retains firms with stronger relative SHORT warning signals; "
+    "missing required data is excluded."
+)
 
 st.subheader("Live screening funnel")
 audit_df = pd.DataFrame(audits).rename(columns={
