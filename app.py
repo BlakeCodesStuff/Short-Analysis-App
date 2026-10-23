@@ -170,7 +170,7 @@ q, rejected_q, audit_q = stage_screen(v, quality_metrics, quality_pct, sector_re
 p, rejected_p, audit_p = stage_screen(q, performance_metrics, performance_pct, sector_relative, "performance")
 
 audits = [audit_v, audit_q, audit_p]
-labels = ["Initial", "After valuation", "After accrual quality", "Final candidates"]
+labels = ["Initial", "After valuation", "After accrual quality", "Final-stage survivors"]
 counts = [len(df), len(v), len(q), len(p)]
 summary_cols = st.columns(4)
 for col, label, count in zip(summary_cols, labels, counts):
@@ -200,15 +200,16 @@ else:
         100 * p[["valuation_strength", "quality_strength", "performance_strength"]].mean(axis=1)
     ).round(1)
     p = p.sort_values(["short_warning_score", "ticker"], ascending=[False, True])
-    st.subheader("Potential SHORT research candidates")
+    st.subheader("Potential SHORT research candidates · Top 10")
     st.caption(
         "Warning scores reflect relative rank strength across the three user-selected screens "
         "(higher = more warning signals). The score is not an estimated probability of a decline. "
+        f"Showing {min(10, len(p))} of {len(p)} final-stage survivors. "
         "Financial ratios below are percentages except book-to-market (a multiple)."
     )
     st.dataframe(
-        shown_columns(p.head(30), include_risk=True),
-        hide_index=True, use_container_width=True, height=470,
+        shown_columns(p.head(10), include_risk=True),
+        hide_index=True, use_container_width=True, height=395,
     )
     st.download_button(
         "Download surviving companies (CSV)",
@@ -415,4 +416,6 @@ Sector-relative mode subtracts sector means; it does **not** divide by sector st
 All rankings and screening results recompute when the sidebar controls change, using only the saved CSV.
 The three stage strengths use tie-aware relative rank percentiles, combined
 into an educational 0–100 warning index for surviving firms.
+Only the top ten SHORT survivors are shown in the main results table; the full
+survivor set remains available for deeper inspection and CSV download.
 """)
