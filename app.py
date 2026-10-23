@@ -20,6 +20,7 @@ st.set_page_config(page_title="ACCT 3343 | SHORT Screening", page_icon="📉", l
 DATA_DIR = Path(__file__).resolve().parent / "data"
 CSV_PATH = DATA_DIR / "short_universe.csv"
 META_PATH = DATA_DIR / "snapshot.json"
+HISTORY_PATH = DATA_DIR / "financial_history.csv"
 
 LABELS = {
     "bm": "Book-to-Market (low = expensive relative to book)",
@@ -55,6 +56,87 @@ def read_dataset(path: str, modified_ns: int):
     if "sector" not in frame.columns:
         frame["sector"] = np.nan
     return frame
+
+
+@st.cache_data(show_spinner=False)
+def read_financial_history(path: str, modified_ns: int) -> pd.DataFrame:
+    """Load only the annual values used in the company-level charts."""
+    fields = [
+        "ticker", "financial_currency", "fiscal_period_end", "fiscal_year",
+        "total_revenue", "net_income", "operating_cash_flow",
+    ]
+    frame = pd.read_csv(path, usecols=fields)
+    frame["fiscal_period_end"] = pd.to_datetime(frame["fiscal_period_end"], errors="coerce")
+    for field in ["total_revenue", "net_income", "operating_cash_flow"]:
+        frame[field] = pd.to_numeric(frame[field], errors="coerce")
+    return frame
+
+
+def company_financial_history(
+    history: pd.DataFrame, ticker: str, statement_currency: str,
+) -> pd.DataFrame:
+    """Keep annual dates in chronological order and avoid mixed-currency charts."""
+    company = history.loc[history["ticker"].eq(ticker)].copy()
+    if statement_currency and statement_currency.lower() != "nan":
+        company = company.loc[company["financial_currency"].eq(statement_currency)]
+    company = company.dropna(subset=["fiscal_period_end"])
+    company = company.sort_values("fiscal_period_end").drop_duplicates(
+        subset=["fiscal_period_end"], keep="last"
+    )
+    company["fiscal_label"] = "FY " + company["fiscal_year"].astype("Int64").astype(str)
+    return company
+
+
+def annual_revenue_chart(history: pd.DataFrame, currency: str) -> go.Figure:
+    available = history.dropna(subset=["total_revenue"])
+    figure = go.Figure(go.Scatter(
+        x=available["fiscal_label"], y=available["total_revenue"],
+        mode="lines+markers", name="Revenue",
+        line={"color": "#4DCCBD", "width": 3}, marker={"size": 9},
+        customdata=available["fiscal_period_end"].dt.strftime("%Y-%m-%d"),
+        hovertemplate=(
+            "%{x} (ended %{customdata})<br>Revenue: %{y:,.0f} "
+            + escape(currency) + "<extra></extra>"
+        ),
+    ))
+    _style_annual_chart(figure, "Revenue", currency)
+    return figure
+
+
+def annual_earnings_cash_chart(history: pd.DataFrame, currency: str) -> go.Figure:
+    figure = go.Figure()
+    for column, label, color in [
+        ("net_income", "Net income", "#8980C9"),
+        ("operating_cash_flow", "Operating cash flow", "#4DCCBD"),
+    ]:
+        available = history.dropna(subset=[column])
+        figure.add_trace(go.Bar(
+            x=available["fiscal_label"], y=available[column],
+            name=label, marker_color=color,
+            customdata=available["fiscal_period_end"].dt.strftime("%Y-%m-%d"),
+            hovertemplate=(
+                "%{x} (ended %{customdata})<br>" + label + ": %{y:,.0f} "
+                + escape(currency) + "<extra></extra>"
+            ),
+        ))
+    _style_annual_chart(figure, "Net income and operating cash flow", currency)
+    figure.update_layout(barmode="group", legend={"orientation": "h", "y": 1.15})
+    return figure
+
+
+def _style_annual_chart(figure: go.Figure, title: str, currency: str) -> None:
+    figure.update_layout(
+        title={"text": title, "font": {"size": 16}},
+        height=330, margin={"l": 70, "r": 18, "t": 70, "b": 60},
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font={"color": "#EAFBF7"},
+        xaxis={"title": "Fiscal year", "type": "category", "automargin": True},
+        yaxis={
+            "title": f"Reported {currency} (scaled)", "tickformat": "~s",
+            "gridcolor": "#404565", "zerolinecolor": "#565A78", "automargin": True,
+        },
+        hoverlabel={"bgcolor": "#282946", "font": {"color": "#EAFBF7"}},
+    )
 
 
 def shown_columns(frame: pd.DataFrame, include_risk=False) -> pd.DataFrame:
@@ -112,6 +194,47 @@ def peer_statistics(universe: pd.DataFrame, sector: str, metric: str, value: flo
         "sample": len(peers),
         "group": description,
     }
+
+
+def relative_peer_assessment(metric: str, value: float, median: float) -> str:
+    """Describe the direction of a raw ratio relative to its peer median."""
+    if pd.isna(value) or pd.isna(median):
+        return "⚪ Data unavailable"
+    if np.isclose(value, median, rtol=0.01, atol=1e-9):
+        return "⚪ Near peer median"
+    more_concerning = value < median if metric in LOW_IS_CONCERNING else value > median
+    return "🔴 Higher SHORT concern" if more_concerning else "🟢 Lower SHORT concern"
+
+
+def peer_gap_display(metric: str, value: float, median: float) -> str:
+    if pd.isna(value) or pd.isna(median):
+        return "Unavailable"
+    difference = value - median
+    if metric == "bm":
+        return f"{difference:+.3f}"
+    return f"{difference * 100:+.2f} pp"
+
+
+def mitigating_metric(
+    universe: pd.DataFrame, sector: str, company: pd.Series,
+    selected_metrics: list[str],
+) -> tuple[str, dict] | None:
+    """Pick an available indicator that is genuinely less concerning than peers."""
+    candidates = []
+    for metric in LABELS:
+        value = company.get(metric, float("nan"))
+        if pd.isna(value):
+            continue
+        stats = peer_statistics(universe, sector, metric, value)
+        if not np.isfinite(stats["percentile"]):
+            continue
+        if relative_peer_assessment(metric, value, stats["median"]) != "🟢 Lower SHORT concern":
+            continue
+        candidates.append((stats["percentile"], metric not in selected_metrics, metric, stats))
+    if not candidates:
+        return None
+    _, _, metric, stats = min(candidates)
+    return metric, stats
 
 
 def short_candidate_scatter(
@@ -435,36 +558,102 @@ else:
         "They are not calibrated probabilities of overvaluation or a price decline."
     )
 
+    st.markdown("**Historical financial performance**")
+    st.caption(
+        "Annual financial statements for this issuer, ordered oldest to newest. "
+        "These are reported nominal amounts in the statement currency, not share-price "
+        "returns. Missing annual values are omitted, never replaced by zero."
+    )
+    if HISTORY_PATH.exists():
+        try:
+            history = read_financial_history(str(HISTORY_PATH), HISTORY_PATH.stat().st_mtime_ns)
+            statement_currency = str(chosen.get("financial_currency", ""))
+            company_history = company_financial_history(history, symbol, statement_currency)
+            historical_values = company_history[[
+                "total_revenue", "net_income", "operating_cash_flow"
+            ]]
+            if historical_values.notna().any().any():
+                revenue_col, cash_col = st.columns(2)
+                with revenue_col:
+                    st.plotly_chart(
+                        annual_revenue_chart(company_history, statement_currency),
+                        use_container_width=True, theme=None,
+                        config={"displaylogo": False},
+                    )
+                with cash_col:
+                    st.plotly_chart(
+                        annual_earnings_cash_chart(company_history, statement_currency),
+                        use_container_width=True, theme=None,
+                        config={"displaylogo": False},
+                    )
+                st.caption(
+                    f"{len(company_history)} annual periods available · "
+                    f"Statement currency: {statement_currency}. "
+                    "Each graph uses the dates and amounts in the saved historical dataset."
+                )
+            else:
+                st.caption("Historical revenue, income, and cash-flow figures are unavailable for this issuer.")
+        except (OSError, ValueError, KeyError) as exc:
+            st.warning(f"Historical financial charts could not be loaded: {exc}")
+    else:
+        st.caption("Historical charts require `data/financial_history.csv` in the deployed repository.")
+
     stage_signals = [
         ("Valuation concern", valuation_metrics),
         ("Accounting-quality concern", quality_metrics),
         ("Operating concern", performance_metrics),
     ]
-    st.markdown("**Provisional SHORT thesis**")
+    st.markdown("**Balanced financial observations**")
+    st.caption(
+        "The three screening categories identify financial questions worth investigating. "
+        "The comparisons below use the initial selected-sector universe, not just the "
+        "companies that survived the screen."
+    )
     for category, stage_metrics in stage_signals:
-        # In a multi-metric stage, explain the strongest concern relative to
-        # the original sector peers, even if it is not independently extreme.
         ranked = sorted(
             stage_metrics,
-            key=lambda m: peer_statistics(screening_universe, sector, m, chosen[m])["percentile"],
+            key=lambda m: peer_statistics(screening_universe, sector, m, chosen[m])["percentile"]
+            if np.isfinite(peer_statistics(screening_universe, sector, m, chosen[m])["percentile"])
+            else -1,
             reverse=True,
         )
         strongest = ranked[0]
         stats = peer_statistics(screening_universe, sector, strongest, chosen[strongest])
-        versus_median_is_concerning = (
-            chosen[strongest] < stats["median"] if strongest in LOW_IS_CONCERNING
-            else chosen[strongest] > stats["median"]
-        )
+        versus_median_is_concerning = relative_peer_assessment(
+            strongest, chosen[strongest], stats["median"]
+        ) == "🔴 Higher SHORT concern"
         interpretation = (
             SHORT_MEANING[strongest] if versus_median_is_concerning
-            else "This metric is not worse than its broader peer median, so it is not a standalone SHORT argument."
+            else "This ratio is not materially worse than the peer median, "
+                 "so it is not independently strong evidence for a SHORT position."
         )
         st.markdown(
             f"- **{category}:** {strongest.upper()} is "
             f"{metric_display(strongest, chosen[strongest])} versus "
             f"{metric_display(strongest, stats['median'])} median among "
-            f"{stats['sample']} {stats['group']} observations. "
+            f"{stats['sample']} {stats['group']} observations "
+            f"({relative_peer_assessment(strongest, chosen[strongest], stats['median'])}). "
             f"{interpretation}"
+        )
+
+    selected_all = valuation_metrics + quality_metrics + performance_metrics
+    mitigating = mitigating_metric(screening_universe, sector, chosen, selected_all)
+    if mitigating:
+        metric, stats = mitigating
+        scope = "selected screening indicator" if metric in selected_all else "additional available indicator"
+        st.markdown(
+            f"- **Counterargument / mitigating factor:** {metric.upper()} "
+            f"({scope}) is {metric_display(metric, chosen[metric])}, compared with "
+            f"the {stats['group']} median of {metric_display(metric, stats['median'])} "
+            f"(n={stats['sample']}). This is less concerning than peers and could "
+            "weaken the provisional SHORT case; the underlying business context "
+            "and latest filings still need review."
+        )
+    else:
+        st.markdown(
+            "- **Counterargument / mitigating factor:** None of the available seven "
+            "ratios is clearly better than its peer median. This does not rule out "
+            "qualitative counterarguments, which require company-specific research."
         )
 
     tax_source = str(chosen.get("taxes_payable_source", ""))
@@ -485,23 +674,29 @@ else:
 
     comparisons = []
     for name in LABELS:
-        if pd.isna(chosen[name]):
-            continue
         stats = peer_statistics(screening_universe, sector, name, chosen[name])
         comparisons.append({
             "Metric": name.upper(),
             "Company": metric_display(name, chosen[name]),
             "Peer median": metric_display(name, stats["median"]),
-            "Relative concern percentile": round(stats["percentile"], 1),
+            "Difference vs median": peer_gap_display(name, chosen[name], stats["median"]),
+            "Relative to peers": relative_peer_assessment(name, chosen[name], stats["median"]),
+            "Concern percentile (/100)": round(stats["percentile"], 1)
+            if pd.notna(stats["percentile"]) else float("nan"),
             "Peer group": stats["group"],
-            "Selected for screening": name in valuation_metrics + quality_metrics + performance_metrics,
+            "Peer observations": stats["sample"],
+            "Selected for screening": name in selected_all,
         })
     st.markdown("**Financial evidence and peer comparison**")
     st.dataframe(pd.DataFrame(comparisons), hide_index=True, use_container_width=True)
     st.caption(
-        "Concern percentile ranks from 0 to 100 within the initial sector group "
-        "(or all selected sectors if too few peers); higher means more concerning "
-        "for that metric. It is not a probability of loss."
+        "Difference vs median uses percentage points (pp) for ratios other than B/M, "
+        "which is displayed as a multiple. Red indicates a less favourable result "
+        "for SHORT screening; green indicates a potentially mitigating one. "
+        "Concern percentiles range from 0 to 100 within the initial sector group "
+        "(or all selected sectors if fewer than five peers). Higher means more "
+        "relative concern, not greater probability of loss. Unavailable metrics "
+        "remain visible and are never treated as zero."
     )
     st.caption(
         f"Fiscal period: {chosen.get('fiscal_period_end', 'Unknown')} · "

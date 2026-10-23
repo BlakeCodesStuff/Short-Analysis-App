@@ -9,7 +9,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from metrics import identify_beneish_index_exclusions  # noqa: E402
-from screening import concern_percentile, stage_screen  # noqa: E402
+from screening import concern_percentile, magic_formula_rankings, stage_screen  # noqa: E402
 
 
 def toy_universe():
@@ -67,6 +67,32 @@ class ScreenTests(unittest.TestCase):
         self.assertGreater(concern_percentile(values, "bm", 0.1), 80)
         self.assertGreater(concern_percentile(values, "sta", 0.3), 80)
         self.assertEqual(concern_percentile(values, "bm", 0.2), 50)
+
+    def test_magic_formula_sums_two_independent_high_is_best_rankings(self):
+        data = pd.DataFrame({
+            "ticker": ["A", "B", "C", "D", "X"],
+            "roc": [0.50, 0.40, 0.30, 0.20, np.nan],
+            "eey": [0.02, 0.05, 0.04, 0.03, 0.09],
+        })
+        ranked = magic_formula_rankings(data)
+        self.assertEqual(ranked["ticker"].tolist(), ["B", "A", "C", "D"])
+        self.assertEqual(ranked["magic_rank_sum"].tolist(), [3, 5, 5, 7])
+        self.assertEqual(ranked["magic_overall_rank"].tolist(), [1, 2, 2, 4])
+        self.assertEqual(int(ranked.iloc[0]["magic_roc_rank"]), 2)
+        self.assertEqual(int(ranked.iloc[0]["magic_eey_rank"]), 1)
+
+    def test_magic_formula_handles_ties_and_nonfinite_values(self):
+        data = pd.DataFrame({
+            "ticker": ["B", "A", "INVALID", "MISSING"],
+            "roc": [0.5, 0.5, float("inf"), 0.2],
+            "eey": [0.1, 0.1, 0.8, np.nan],
+        })
+        ranked = magic_formula_rankings(data)
+        self.assertEqual(ranked["ticker"].tolist(), ["A", "B"])
+        self.assertEqual(ranked["magic_roc_rank"].tolist(), [1, 1])
+        self.assertEqual(ranked["magic_eey_rank"].tolist(), [1, 1])
+        self.assertEqual(ranked["magic_rank_sum"].tolist(), [2, 2])
+        self.assertTrue(magic_formula_rankings(data.iloc[2:]).empty)
 
     def test_identify_exclusions_only_when_nonpositive_index_is_reported(self):
         data = pd.DataFrame({
