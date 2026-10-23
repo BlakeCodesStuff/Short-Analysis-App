@@ -1,10 +1,24 @@
 [theme]
-base = "light"
-primaryColor = "#B91C1C"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F3F5F8"
-textColor = "#162433"
+base = "dark"
+# Twilight navy and violet, inspired by the supplied Coolors palette.
+primaryColor = "#2374AB"
+backgroundColor = "#171B32"
+secondaryBackgroundColor = "#282946"
+textColor = "#EAFBF7"
+linkColor = "#4DCCBD"
+borderColor = "#404565"
+dataframeHeaderBackgroundColor = "#302C50"
+redColor = "#FF8484"
+blueColor = "#70B3E0"
+greenColor = "#4DCCBD"
 font = "sans serif"
+
+[theme.sidebar]
+backgroundColor = "#231651"
+secondaryBackgroundColor = "#34275F"
+textColor = "#EAFBF7"
+primaryColor = "#2374AB"
+borderColor = "#493B72"
 
 [browser]
 gatherUsageStats = false
