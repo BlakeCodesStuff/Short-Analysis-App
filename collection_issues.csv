@@ -1,0 +1,73 @@
+ticker,issue
+GOOG,Other traded share class of GOOGL excluded
+BRK-B,Other traded share class of BRK-A excluded
+JPM-PC,Other traded share class of JPM excluded
+JPM-PD,Other traded share class of JPM excluded
+BML-PH,Other traded share class of BAC excluded
+BML-PG,Other traded share class of BAC excluded
+BML-PL,Other traded share class of BAC excluded
+BML-PJ,Other traded share class of BAC excluded
+BAC-PB,Other traded share class of BAC excluded
+BAC-PE,Other traded share class of BAC excluded
+BAC-PK,Other traded share class of BAC excluded
+WFC-PY,Other traded share class of WFC excluded
+PBR-A,Other traded share class of PBR excluded
+WFC-PC,Other traded share class of WFC excluded
+USB-PH,Other traded share class of USB excluded
+GS-PA,Other traded share class of GS excluded
+MS-PA,Other traded share class of MS excluded
+GS-PD,Other traded share class of GS excluded
+MS-PE,Other traded share class of MS excluded
+MS-PF,Other traded share class of MS excluded
+USB-PP,Other traded share class of USB excluded
+MS-PI,Other traded share class of MS excluded
+MS-PK,Other traded share class of MS excluded
+DUK-PA,Other traded share class of DUK excluded
+SCHW-PD,Other traded share class of SCHW excluded
+CTA-PA,Other traded share class of CTA-PB excluded
+MET-PA,Other traded share class of MET excluded
+BBDO,Other traded share class of BBD excluded
+MET-PE,Other traded share class of MET excluded
+ALL-PB,Other traded share class of ALL excluded
+HEI-A,Other traded share class of HEI excluded
+PSA-PH,Other traded share class of PSA excluded
+PSA-PK,Other traded share class of PSA excluded
+ALL-PH,Other traded share class of ALL excluded
+FOX,Other traded share class of FOXA excluded
+FWONA,Other traded share class of FWONK excluded
+DLR-PK,Other traded share class of DLR excluded
+LEN-B,Other traded share class of LEN excluded
+DLR-PJ,Other traded share class of DLR excluded
+NWSA,Other traded share class of NWS excluded
+HIG-PG,Other traded share class of HIG excluded
+STT-PG,Other traded share class of STT excluded
+KEY-PI,Other traded share class of KEY excluded
+KEY-PK,Other traded share class of KEY excluded
+BF-B,Other traded share class of BF-A excluded
+RF-PC,Other traded share class of RF excluded
+NLY-PG,Other traded share class of NLY excluded
+NLY-PF,Other traded share class of NLY excluded
+MKC,Other traded share class of MKC-V excluded
+KEY-PJ,Other traded share class of KEY excluded
+MOG-B,Other traded share class of MOG-A excluded
+ACGLO,Other traded share class of ACGL excluded
+UHAL-B,Other traded share class of UHAL excluded
+VNO-PL,Other traded share class of VNO-PM excluded
+LLYVA,Other traded share class of LLYVK excluded
+AGNCM,Other traded share class of AGNC excluded
+AGNCN,Other traded share class of AGNC excluded
+TAP,Other traded share class of TAP-A excluded
+Z,Other traded share class of ZG excluded
+AMH-PH,Other traded share class of AMH excluded
+FRT-PC,Other traded share class of FRT excluded
+AMH-PG,Other traded share class of AMH excluded
+VOYA-PB,Other traded share class of VOYA excluded
+CIG,Other traded share class of CIG-C excluded
+VNO,Other traded share class of VNO-PM excluded
+VYLR,price matching: no close-price observations
+BA,Nonpositive Beneish GMI
+CLF,Nonpositive Beneish GMI
+ENTG,Nonpositive Beneish SGAI
+RIVN,Nonpositive Beneish GMI
+STLA,Nonpositive Beneish GMI
+SWX,Nonpositive Beneish SGAI

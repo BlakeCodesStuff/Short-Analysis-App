@@ -243,13 +243,19 @@ try:
     collection_date = datetime.fromisoformat(raw_collection_date).strftime("%B %d, %Y").replace(" 0", " ")
 except (TypeError, ValueError):
     collection_date = "not recorded"
+raw_reference_date = snapshot.get("analysis_reference_date", "")
+try:
+    analysis_reference_date = datetime.fromisoformat(raw_reference_date).strftime("%B %d, %Y").replace(" 0", " ")
+except (TypeError, ValueError):
+    analysis_reference_date = "not recorded"
 fiscal_dates = pd.to_datetime(df["fiscal_period_end"], errors="coerce").dropna()
 fiscal_period_range = (
     f"{fiscal_dates.min():%Y-%m-%d} to {fiscal_dates.max():%Y-%m-%d}"
     if not fiscal_dates.empty else "not available"
 )
 st.caption(
-    f"Source: Yahoo Finance · Data collected: {collection_date} (UTC) "
+    f"Source: Yahoo Finance · Analysis reference date: {analysis_reference_date} "
+    f"· Data collected: {collection_date} (UTC) "
     f"· Fiscal year-ends: {fiscal_period_range} "
     f"· Starting firms: {len(df):,} · "
     f"Beneish index quality exclusions: {snapshot.get('beneish_index_exclusions', 0)} "

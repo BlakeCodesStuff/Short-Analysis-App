@@ -1,0 +1,22 @@
+{
+  "collected_at_utc": "2026-10-23T03:57:55.612226+00:00",
+  "analysis_reference_date": "2026-10-17",
+  "source": "Yahoo Finance via yfinance",
+  "requested_company_count": 1200,
+  "companies_with_statements": 1200,
+  "unique_issuers_after_share_class_deduplication": 1135,
+  "nonfinancial_companies": 949,
+  "currency_mismatches_or_unverified": 101,
+  "coverage_by_metric": {
+    "bm": 767,
+    "eey": 786,
+    "sta": 933,
+    "snoa": 866,
+    "pman": 457,
+    "gpa": 926,
+    "roc": 868
+  },
+  "nonfinancial_companies_before_quality_review": 955,
+  "beneish_index_exclusions": 6,
+  "screening_exclusion_rule": "Exclude nonpositive available Beneish GMI or SGAI"
+}

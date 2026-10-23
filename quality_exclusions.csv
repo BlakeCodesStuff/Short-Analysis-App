@@ -1,0 +1,7 @@
+ticker,company_name,gmi,sgai,reason
+BA,The Boeing Company,-0.6243469830618421,0.9018125349004488,Nonpositive Beneish GMI
+CLF,Cleveland-Cliffs Inc.,-0.0710602396494354,1.1518050828905209,Nonpositive Beneish GMI
+ENTG,"Entegris, Inc.",1.0326378681226167,-0.0385964834613938,Nonpositive Beneish SGAI
+RIVN,"Rivian Automotive, Inc.",-9.03252850435949,0.9048871107613964,Nonpositive Beneish GMI
+STLA,Stellantis N.V.,-9.47486516351103,0.9854666976985196,Nonpositive Beneish GMI
+SWX,"Southwest Gas Holdings, Inc.",0.6965638531355466,-116.41684971868544,Nonpositive Beneish SGAI
