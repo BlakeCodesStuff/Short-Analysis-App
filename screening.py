@@ -13,6 +13,32 @@ HIGH_IS_CONCERNING = frozenset({"sta", "snoa", "pman"})
 ALL_METRICS = LOW_IS_CONCERNING | HIGH_IS_CONCERNING
 
 
+def magic_formula_rankings(universe: pd.DataFrame) -> pd.DataFrame:
+    """Rank ROC and enterprise earnings yield independently (highest is best).
+
+    The lowest combined rank is the most attractive under the course's Magic
+    Formula method. Missing or nonfinite inputs are excluded, never imputed.
+    This is separate from the custom sequential SHORT-warning heuristic.
+    """
+    eligible = universe.copy()
+    for metric in ("roc", "eey"):
+        eligible[metric] = pd.to_numeric(eligible[metric], errors="coerce")
+        eligible[metric] = eligible[metric].replace([np.inf, -np.inf], np.nan)
+    eligible = eligible.dropna(subset=["roc", "eey"]).copy()
+
+    if eligible.empty:
+        for field in ("magic_roc_rank", "magic_eey_rank", "magic_rank_sum", "magic_overall_rank"):
+            eligible[field] = pd.Series(dtype="int64")
+        return eligible
+
+    # Matching metric values share the best occupied rank (1, 1, 3, ...).
+    eligible["magic_roc_rank"] = eligible["roc"].rank(ascending=False, method="min").astype(int)
+    eligible["magic_eey_rank"] = eligible["eey"].rank(ascending=False, method="min").astype(int)
+    eligible["magic_rank_sum"] = eligible["magic_roc_rank"] + eligible["magic_eey_rank"]
+    eligible["magic_overall_rank"] = eligible["magic_rank_sum"].rank(method="min").astype(int)
+    return eligible.sort_values(["magic_rank_sum", "ticker"]).copy()
+
+
 def stage_screen(
     entering: pd.DataFrame,
     metrics: list[str],
