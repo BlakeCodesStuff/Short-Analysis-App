@@ -23,6 +23,7 @@ class FakeStreamlit(types.ModuleType):
         self.reported_charts = []
         self.reported_chart_configs = []
         self.reported_captions = []
+        self.reported_warnings = []
 
     def __enter__(self):
         return self
@@ -36,7 +37,7 @@ class FakeStreamlit(types.ModuleType):
     def __getattr__(self, name):
         if name in {
             "set_page_config", "title", "info", "header", "subheader",
-            "markdown", "warning", "error", "download_button",
+            "markdown", "error", "download_button",
             "link_button",
         }:
             return lambda *args, **kwargs: None
@@ -70,6 +71,9 @@ class FakeStreamlit(types.ModuleType):
 
     def caption(self, message, **_):
         self.reported_captions.append(message)
+
+    def warning(self, message, **_):
+        self.reported_warnings.append(message)
 
     def selectbox(self, label, options, **_):
         return list(options)[0]
@@ -115,10 +119,18 @@ class AppSmokeTests(unittest.TestCase):
         ]
         self.assertEqual(len(displayed_magic), 1)
         self.assertEqual(len(displayed_magic[0]), 10)
+        self.assertIn("ROC capital / assets (%)", displayed_magic[0].columns)
+        self.assertIn("ROC interpretation", displayed_magic[0].columns)
         self.assertEqual(
             displayed_magic[0]["Ticker"].tolist(),
             namespace["magic"].head(10)["ticker"].tolist(),
         )
+        flagged = displayed_magic[0].loc[
+            displayed_magic[0]["ROC interpretation"].ne(""), "Ticker"
+        ].tolist()
+        self.assertEqual(set(flagged), {"OTEX", "DELL", "CPAY"})
+        self.assertTrue(any(all(ticker in w for ticker in flagged)
+                            and "2%" in w for w in fake.reported_warnings))
         self.assertEqual(len(fake.reported_charts), 3)
         chart = fake.reported_charts[0]
         self.assertEqual(sum(len(trace.x) for trace in chart.data), len(final))

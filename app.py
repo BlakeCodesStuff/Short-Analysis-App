@@ -165,6 +165,17 @@ def metric_display(name: str, value: float) -> str:
     return f"{value:.3f}" if name == "bm" else f"{value * 100:.2f}%"
 
 
+def roc_capital_base_share(frame: pd.DataFrame) -> pd.Series:
+    """Capital behind ROC as a share of assets; invalid bases stay unavailable."""
+    capital = (
+        pd.to_numeric(frame["net_property_plant_equipment"], errors="coerce")
+        + pd.to_numeric(frame["current_assets"], errors="coerce")
+        - pd.to_numeric(frame["current_liabilities"], errors="coerce")
+    )
+    assets = pd.to_numeric(frame["total_assets"], errors="coerce")
+    return capital.div(assets).where(capital.gt(0) & assets.gt(0))
+
+
 def shown_magic_columns(frame: pd.DataFrame) -> pd.DataFrame:
     """Display original metrics alongside transparent textbook rank additions."""
     cols = [
@@ -174,6 +185,11 @@ def shown_magic_columns(frame: pd.DataFrame) -> pd.DataFrame:
     shown = frame[cols].copy()
     shown["roc"] = (100 * shown["roc"]).round(2)
     shown["eey"] = (100 * shown["eey"]).round(2)
+    capital_share = roc_capital_base_share(frame)
+    shown["ROC capital / assets (%)"] = (100 * capital_share).round(2)
+    shown["ROC interpretation"] = np.where(
+        capital_share.lt(0.02), "Review: small capital base", ""
+    )
     return shown.rename(columns={
         "magic_overall_rank": "Overall rank", "ticker": "Ticker",
         "company_name": "Company", "sector": "Sector", "roc": "ROC (%)",
@@ -804,6 +820,12 @@ with st.expander("Course formulas and interpretation"):
 
 - GPA = (revenue − cost of goods sold) / total assets.
 - ROC = EBIT / (net PP&E + current assets − current liabilities).
+- ROC uses Yahoo Finance's net PP&E classification. For OpenText's FY2026
+  figures, the Yahoo amount includes the separately reported operating-lease
+  right-of-use assets. We retain this source classification consistently.
+- The numerators for ROC and EEY use Yahoo Finance's annual **EBIT** field.
+  This can differ from GAAP operating income because of non-operating items;
+  the app does not substitute reported operating income for Yahoo's EBIT.
 
 **Textbook Magic Formula (BUY research ranking)**
 
@@ -811,6 +833,15 @@ with st.expander("Course formulas and interpretation"):
 - Magic Formula combined rank = ROC rank + EEY rank; lower totals rank first.
 - This is a separate research screen from the custom SHORT warning score and uses
   the professor's ROC, TEV and excess-cash conventions recorded above.
+- The market-equity calculation adjusts for the quoted security's share unit:
+  **Genmab (GMAB): 10 Nasdaq ADSs represent one ordinary share**, so its
+  ordinary-share count is multiplied by 10 before multiplying by the ADS price.
+  The conversion follows [Genmab's SEC Form 20-F](https://www.sec.gov/Archives/edgar/data/1434265/000143426526000014/gmab-20251231_d2.htm).
+- **Custom ROC interpretation check (not part of the textbook Magic Formula):**
+  invested capital = net PP&E + current assets − current liabilities.
+  If positive invested capital is less than 2% of total assets, we flag the
+  ratio as sensitive to small denominator changes. The flag does not change
+  any ROC value, selection, or Magic Formula rank.
 
 For PMAN, all eight components and a consecutive preceding annual fiscal period must exist.
 The screening universe also excludes any firm with a reported nonpositive
@@ -849,10 +880,18 @@ st.caption(
 if magic.empty:
     st.warning("No companies in the selected sectors have both ROC and EEY available.")
 else:
+    small_capital = roc_capital_base_share(magic.head(10)).lt(0.02)
     st.dataframe(
         shown_magic_columns(magic.head(10)),
         hide_index=True, use_container_width=True, height=395,
     )
+    if small_capital.any():
+        flagged = ", ".join(magic.head(10).loc[small_capital, "ticker"])
+        st.warning(
+            f"ROC interpretation check for {flagged}: invested capital is below "
+            "2% of total assets. Such a small denominator can produce unusually "
+            "high ROC; this custom warning does not affect the textbook ranking."
+        )
     st.download_button(
         "Download full Magic Formula ranking (CSV)",
         shown_magic_columns(magic).to_csv(index=False).encode("utf-8"),
@@ -860,6 +899,7 @@ else:
     )
 st.caption(
     "Magic Formula rankings are a BUY **research starting point**, not trade instructions. "
-    "High ROC can be inflated by a small capital denominator, and the accounting data and "
-    "historical valuation snapshot need checking before any investment decision."
+    "The app uses Yahoo Finance's annual EBIT and net PP&E classifications. "
+    "High ROC can be inflated by a small capital denominator. These accounting "
+    "inputs and historical valuations need checking before any investment decision."
 )

@@ -119,6 +119,18 @@ class RatioTests(unittest.TestCase):
         self.assertTrue(math.isnan(result["bm"]))
         self.assertIn("Multiple share classes", result["bm_reason"])
 
+    def test_ads_price_is_converted_to_ordinary_share_units_for_genmab(self):
+        older, latest = example(2024, ticker="GMAB"), example(2025, ticker="GMAB")
+        result = calculate_metrics(pd.DataFrame([older, latest])).iloc[0]
+        self.assertAlmostEqual(result["market_equity"], 10 * 20 * 10)
+        self.assertAlmostEqual(result["bm"], 140 / 2000)
+        self.assertAlmostEqual(result["tev_course"], 2000 + 32 + 4 + 6 - 52)
+        self.assertAlmostEqual(result["eey"], 22 / 1990)
+
+        # Other companies' ordinary-share prices remain one-to-one.
+        ordinary = calculate_metrics(pd.DataFrame([example(2024), example(2025)])).iloc[0]
+        self.assertAlmostEqual(ordinary["market_equity"], 200)
+
     def test_missing_prior_year_blocks_pman(self):
         latest = example(2025)
         older = example(2023)

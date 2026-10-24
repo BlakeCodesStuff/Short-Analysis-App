@@ -49,6 +49,12 @@ SCREEN_METRICS = {
     "roc": "Return on Capital",
 }
 
+# Genmab's Nasdaq GMAB quote is for an ADS, not an ordinary share. Its 2025
+# Form 20-F specifies that one ordinary share corresponds to ten ADSs.
+# The annual ordinary-share count therefore needs this factor when multiplied
+# by the USD ADS closing price. Other quotes continue to use one-to-one units.
+ADS_PER_ORDINARY_SHARE = {"GMAB": 10.0}
+
 
 def safe_ratio(numerator: pd.Series, denominator: pd.Series, *, positive: bool = True) -> pd.Series:
     """Ratio preserving missing values and rejecting non-finite observations."""
@@ -205,8 +211,10 @@ def calculate_metrics(raw_history: pd.DataFrame) -> pd.DataFrame:
     valid_market_equity = (
         df["valuation_currency_valid"] & ~df["multiple_traded_share_classes"]
     )
+    quote_units_per_ordinary_share = df["ticker"].map(ADS_PER_ORDINARY_SHARE).fillna(1.0)
     df["market_equity"] = (
         df["ordinary_shares_number"] * df["fiscal_period_end_close"]
+        * quote_units_per_ordinary_share
     ).where(valid_market_equity)
 
     # Chapter 3's verified balance-sheet reconstructions. Preserve each

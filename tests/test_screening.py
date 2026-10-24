@@ -114,6 +114,17 @@ class ScreenTests(unittest.TestCase):
         self.assertTrue(identify_beneish_index_exclusions(data).empty)
         self.assertEqual(data["pman"].notna().sum(), 457)
 
+        genmab = data.loc[data["ticker"].eq("GMAB")].iloc[0]
+        self.assertAlmostEqual(
+            genmab["market_equity"],
+            genmab["ordinary_shares_number"] * genmab["fiscal_period_end_close"] * 10,
+        )
+        self.assertAlmostEqual(genmab["eey"], genmab["ebit"] / genmab["tev_course"])
+        ranked = magic_formula_rankings(data)
+        self.assertEqual(len(ranked), 723)
+        self.assertNotIn("GMAB", ranked.head(10)["ticker"].tolist())
+        self.assertEqual(ranked.head(10).iloc[-1]["ticker"], "CTSH")
+
 
 if __name__ == "__main__":
     unittest.main()
