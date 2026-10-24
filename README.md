@@ -9,8 +9,8 @@
   presentation styles, kept separate from interactive ranking calculations.
 - `requirements.txt`: dependencies for the deployed app.
 - `data/short_universe.csv`: **included** cleaned universe with 949 unique issuers.
-- `data/snapshot.json`: records the actual UTC collection timestamp, a separately
-  labelled analysis reference date, and the number of collected/valid firms.
+- `data/snapshot.json`: records the labelled analysis reference date and the
+  number of collected/valid firms; it does not state a collection timestamp.
 - `data/quality_exclusions.csv`: six tickers with GMI/SGAI and exclusion reasons.
 - `data/financial_history.csv`: original annual history, including firms omitted
   from the screen, retained for reproducibility.
@@ -79,10 +79,9 @@ the higher-concern corner, while mouse-wheel/trackpad zoom allows even finer
 cursor-centred control. Extra spacing keeps axis labels visible.
 
 The source caption shows **October 17, 2026** as the separately labelled
-analysis reference date and **October 23, 2026 (UTC)** as the actual data
-collection date, both from `snapshot.json`. It also shows the earliest/latest
+analysis reference date from `snapshot.json`. It also shows the earliest/latest
 fiscal year-ends in the screened static dataset (2025-07-31 to 2026-07-31 in
-the included snapshot). The analysis reference date is not the collection date.
+the included snapshot). The analysis reference date is not a collection date.
 
 The separate **Magic Formula** section at the bottom is the course's BUY
 research-ranking method. It uses *all selected-sector companies* with valid

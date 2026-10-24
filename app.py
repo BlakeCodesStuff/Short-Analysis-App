@@ -378,11 +378,6 @@ if META_PATH.exists():
         snapshot = json.loads(META_PATH.read_text(encoding="utf-8"))
     except (ValueError, OSError):
         pass
-raw_collection_date = snapshot.get("collected_at_utc", "")
-try:
-    collection_date = datetime.fromisoformat(raw_collection_date).strftime("%B %d, %Y").replace(" 0", " ")
-except (TypeError, ValueError):
-    collection_date = "not recorded"
 raw_reference_date = snapshot.get("analysis_reference_date", "")
 try:
     analysis_reference_date = datetime.fromisoformat(raw_reference_date).strftime("%B %d, %Y").replace(" 0", " ")
@@ -395,7 +390,6 @@ fiscal_period_range = (
 )
 st.caption(
     f"Source: Yahoo Finance · Analysis reference date: {analysis_reference_date} "
-    f"· Data collected: {collection_date} (UTC) "
     f"· Fiscal year-ends: {fiscal_period_range} "
     f"· Starting firms: {len(df):,} · "
     f"Beneish index quality exclusions: {snapshot.get('beneish_index_exclusions', 0)} "

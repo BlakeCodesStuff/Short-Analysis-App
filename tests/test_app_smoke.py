@@ -194,10 +194,10 @@ class AppSmokeTests(unittest.TestCase):
         self.assertIn("Peer observations", peer_tables[0].columns)
         self.assertTrue(any(
             "Analysis reference date: October 17, 2026" in c
-            and "Data collected: October 23, 2026 (UTC)" in c
             and "Fiscal year-ends: 2025-07-31 to 2026-07-31" in c
             for c in fake.reported_captions
         ))
+        self.assertFalse(any("Data collected:" in c for c in fake.reported_captions))
 
     def test_history_keeps_dates_and_missing_values_without_mix_of_currencies(self):
         fake = FakeStreamlit()
