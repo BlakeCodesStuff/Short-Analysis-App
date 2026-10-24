@@ -13,6 +13,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from investment_cases import CASES, CASE_INTRO, CASE_STYLE, case_html
 from screening import LOW_IS_CONCERNING, concern_percentile, magic_formula_rankings, stage_screen
 
 
@@ -720,6 +721,22 @@ else:
         "Price used: historical closing price on or before the fiscal period-end"
     )
     st.link_button("View the company's Yahoo Finance page", f"https://finance.yahoo.com/quote/{quote(symbol, safe='')}/")
+
+st.subheader("Selected sell/short investment cases")
+st.markdown(CASE_INTRO)
+st.caption(
+    "These three written cases were selected from the default BM → STA → GPA "
+    "Top 10 SHORT screen. The ranks and scores in this section refer to those "
+    "default settings; unlike the interactive tables above, the authored cases "
+    "do not change when filters are adjusted. Financial figures are based on "
+    "the stated fiscal years and later company reports, not live market quotes. "
+    "They are research arguments, not predicted share-price movements or trade instructions."
+)
+st.markdown(CASE_STYLE, unsafe_allow_html=True)
+case_tabs = st.tabs([f"{case.company} · #{case.default_rank}" for case in CASES])
+for case_tab, investment_case in zip(case_tabs, CASES):
+    with case_tab:
+        st.markdown(case_html(investment_case), unsafe_allow_html=True)
 
 with st.expander("Inspect companies around each cutoff"):
     for name, kept, rejected in [

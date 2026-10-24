@@ -5,6 +5,8 @@
 - `prepare_static_snapshot.py`: reproduce exclusions without repeating Yahoo requests.
 - `screening.py`: screening and peer-rank logic, tested independently of the UI.
 - `app.py`: publicly accessible Streamlit interface. **Never calls Yahoo Finance.**
+- `investment_cases.py`: the three fixed, author-selected sell/short cases and their
+  presentation styles, kept separate from interactive ranking calculations.
 - `requirements.txt`: dependencies for the deployed app.
 - `data/short_universe.csv`: **included** cleaned universe with 949 unique issuers.
 - `data/snapshot.json`: records the actual UTC collection timestamp, a separately
@@ -44,6 +46,14 @@ of observations, and a colour-coded directional SHORT concern assessment.
 Balanced observations identify the strongest signal in each screening category
 and one evidence-based counterargument when a ratio is better than its peer
 median. These are screening observations, not fully researched investment cases.
+
+The **Selected sell/short investment cases** section contains written cases for
+FTAI Aviation, Coherent, and Rocket Lab. Each case shows key historical figures,
+the author's financial argument, an opposing argument, a conclusion, and
+supporting evidence. All three belong to the default Top 10; their fixed case
+ranks and scores are labelled as **default-screen values** and do not change
+when users adjust the interactive screen controls. The cases are independent
+research commentary, not automatically generated trading instructions.
 
 The main SHORT candidate table shows the **top 10** by our app-created
 **Custom SHORT warning score**, displayed as a **Relative SHORT concern ranking

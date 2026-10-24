@@ -24,6 +24,8 @@ class FakeStreamlit(types.ModuleType):
         self.reported_chart_configs = []
         self.reported_captions = []
         self.reported_warnings = []
+        self.reported_markdown = []
+        self.reported_tab_labels = []
 
     def __enter__(self):
         return self
@@ -37,11 +39,18 @@ class FakeStreamlit(types.ModuleType):
     def __getattr__(self, name):
         if name in {
             "set_page_config", "title", "info", "header", "subheader",
-            "markdown", "error", "download_button",
+            "error", "download_button",
             "link_button",
         }:
             return lambda *args, **kwargs: None
         raise AttributeError(name)
+
+    def markdown(self, text, **kwargs):
+        self.reported_markdown.append((text, kwargs))
+
+    def tabs(self, labels, **_):
+        self.reported_tab_labels = list(labels)
+        return [self] * len(labels)
 
     def multiselect(self, label, options, default=None, **_):
         return list(default) if default is not None else list(options)
@@ -114,6 +123,23 @@ class AppSmokeTests(unittest.TestCase):
         self.assertEqual(
             displayed_short[0]["Ticker"].tolist(), final.head(10)["ticker"].tolist()
         )
+        self.assertEqual(fake.reported_tab_labels, [
+            "FTAI Aviation · #3", "Coherent Corp. · #8", "Rocket Lab · #2"
+        ])
+        case_html = [
+            content for content, kwargs in fake.reported_markdown
+            if kwargs.get("unsafe_allow_html") and '<article class="investment-case">' in content
+        ]
+        self.assertEqual(len(case_html), 3)
+        self.assertTrue(all("Supporting Evidence" in card for card in case_html))
+        self.assertTrue(any("$3.45 billion in debt" in card for card in case_html))
+        self.assertTrue(any("I chose three companies" in content
+                            for content, _ in fake.reported_markdown))
+        for case in namespace["CASES"]:
+            self.assertEqual(final["ticker"].tolist().index(case.ticker) + 1,
+                             case.default_rank)
+            score = final.loc[final["ticker"].eq(case.ticker), "short_warning_score"].iloc[0]
+            self.assertAlmostEqual(score, case.default_score)
         displayed_magic = [
             t for t in fake.reported_tables if "Combined rank sum" in t.columns
         ]
